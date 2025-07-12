@@ -12,6 +12,8 @@ npx claude-code-to-adium
 
 But you do need [Adium](https://adium.im) installed, and you can install any theme you want to Adium to have it show up in the list
 
+![screenshot](screenshot.png)
+
 ## Installation (Development)
 
 ```bash
