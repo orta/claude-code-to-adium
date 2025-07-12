@@ -78,22 +78,24 @@ async function main() {
 async function interactiveMode() {
     // Read version from package.json
     let version = "unknown";
-    try {
-        const packagePath = path.resolve(__dirname, "..", "package.json");
-        const packageContent = fs.readFileSync(packagePath, "utf8");
-        const packageData = JSON.parse(packageContent);
-        version = packageData.version;
-    }
-    catch {
-        // Try current directory (for npm package structure)
+    // Try multiple locations for package.json
+    const possiblePaths = [
+        path.resolve(__dirname, "package.json"), // Same dir as compiled code
+        path.resolve(__dirname, "..", "package.json"), // Parent dir (dev)
+        path.resolve(process.cwd(), "package.json"), // Current working dir
+        path.resolve(__dirname, "..", "..", "package.json") // npm package root
+    ];
+    for (const packagePath of possiblePaths) {
         try {
-            const packagePath = path.resolve(__dirname, "package.json");
             const packageContent = fs.readFileSync(packagePath, "utf8");
             const packageData = JSON.parse(packageContent);
-            version = packageData.version;
+            if (packageData.name === "claude-code-to-adium") {
+                version = packageData.version;
+                break;
+            }
         }
         catch {
-            // Fallback if package.json not found
+            // Continue to next path
         }
     }
     console.log(`Claude Code to Adium HTML Converter v${version}`);
