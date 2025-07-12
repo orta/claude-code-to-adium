@@ -76,8 +76,28 @@ async function main() {
     }
 }
 async function interactiveMode() {
-    console.log("Claude Code to Adium HTML Converter");
-    console.log("=====================================\n");
+    // Read version from package.json
+    let version = "unknown";
+    try {
+        const packagePath = path.resolve(__dirname, "..", "package.json");
+        const packageContent = fs.readFileSync(packagePath, "utf8");
+        const packageData = JSON.parse(packageContent);
+        version = packageData.version;
+    }
+    catch {
+        // Try current directory (for npm package structure)
+        try {
+            const packagePath = path.resolve(__dirname, "package.json");
+            const packageContent = fs.readFileSync(packagePath, "utf8");
+            const packageData = JSON.parse(packageContent);
+            version = packageData.version;
+        }
+        catch {
+            // Fallback if package.json not found
+        }
+    }
+    console.log(`Claude Code to Adium HTML Converter v${version}`);
+    console.log("=".repeat(40 + version.length) + "\n");
     // Step 1: Choose project
     const projects = getAvailableProjects();
     const { selectedProject } = await inquirer_1.default.prompt([
