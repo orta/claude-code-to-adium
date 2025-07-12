@@ -1,6 +1,6 @@
 {
   "name": "claude-code-to-adium",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Convert Claude Code conversations to HTML using Adium message themes",
   "license": "BSD-3-Clause",
   "repository": {
@@ -10,10 +10,11 @@
   "author": "Orta Therox",
   "main": "main.ts",
   "bin": {
-    "claude-to-adium": "./main.ts"
+    "claude-to-adium": "./cli.js"
   },
   "files": [
     "main.ts",
+    "cli.js",
     "claude-icon-filled-256.png",
     "LICENSE",
     "README.md"
