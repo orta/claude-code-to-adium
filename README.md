@@ -1,23 +1,16 @@
 # Claude Code to Adium HTML Converter
 
-Convert your Claude Code conversations to beautifully styled HTML files using classic Adium message themes.
-
-## Features
-
-- 🎨 **Beautiful Themes** - Uses authentic Adium message styles for nostalgic, polished chat presentation
-- 🖱️ **Interactive Mode** - Simple prompts to select projects, conversations, and themes
-- ⚡ **Direct Mode** - Skip prompts with command-line arguments for automation
-- 📁 **Self-Contained Output** - Generates complete folders with all theme resources included
-- 🔄 **Smart Parsing** - Handles Claude Code's JSONL conversation format with interruptions and system messages
-- 📱 **Claude Code Logo** - Uses official Claude Code logo for Claude's messages
+Convert your Claude Code conversations to styled HTML files using classic Adium message themes.
 
 ## Quick Start
 
-**No installation needed!** Run directly with npx:
+No installation needed, use npx:
 
 ```bash
 npx claude-code-to-adium
 ```
+
+But you do need [Adium](https://adium.im) installed, and you can install any theme you want to Adium to have it show up in the list
 
 ## Installation (Development)
 
