@@ -1,6 +1,6 @@
 {
   "name": "claude-code-to-adium",
-  "version": "0.0.2",
+  "version": "1.0.1",
   "description": "Convert Claude Code conversations to HTML using Adium message themes",
   "license": "BSD-3-Clause",
   "repository": {
@@ -8,30 +8,31 @@
     "url": "https://github.com/orta/claude-code-to-adium.git"
   },
   "author": "Orta Therox",
-  "main": "main.ts",
+  "main": "dist/main.js",
   "bin": {
-    "claude-to-adium": "./cli.js"
+    "claude-to-adium": "./dist/main.js"
   },
   "files": [
-    "main.ts",
-    "cli.js",
+    "dist",
     "claude-icon-filled-256.png",
     "LICENSE",
     "README.md"
   ],
   "scripts": {
+    "build": "tsc",
     "start": "tsx main.ts",
     "dev": "tsx main.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "inquirer": "^8.2.0",
-    "marked": "^12.0.0",
-    "tsx": "^4.0.0"
+    "marked": "^12.0.0"
   },
   "devDependencies": {
     "@types/inquirer": "^8.2.0",
     "@types/node": "^24.0.13",
+    "tsx": "^4.0.0",
     "typescript": "^5.0.0"
   },
   "packageManager": "yarn@4.3.1"

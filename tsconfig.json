@@ -9,9 +9,11 @@
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "noEmit": true,
+    "outDir": "./dist",
+    "rootDir": "./",
+    "declaration": true,
     "typeRoots": ["node_modules/@types"]
   },
   "include": ["main.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "dist"]
 }

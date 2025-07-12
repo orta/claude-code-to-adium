@@ -7,14 +7,23 @@ Convert your Claude Code conversations to beautifully styled HTML files using cl
 - 🎨 **Beautiful Themes** - Uses authentic Adium message styles for nostalgic, polished chat presentation
 - 🖱️ **Interactive Mode** - Simple prompts to select projects, conversations, and themes
 - ⚡ **Direct Mode** - Skip prompts with command-line arguments for automation
-- 📁 **Auto-Discovery** - Automatically finds Claude projects and available Adium themes
-- 🔄 **Smart Parsing** - Handles Claude Code's JSONL conversation format with message content extraction
+- 📁 **Self-Contained Output** - Generates complete folders with all theme resources included
+- 🔄 **Smart Parsing** - Handles Claude Code's JSONL conversation format with interruptions and system messages
+- 📱 **Claude Code Logo** - Uses official Claude Code logo for Claude's messages
 
-## Installation
+## Quick Start
+
+**No installation needed!** Run directly with npx:
+
+```bash
+npx claude-code-to-adium
+```
+
+## Installation (Development)
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/orta/claude-code-to-adium.git
 cd claude-code-to-adium
 
 # Install dependencies
@@ -25,15 +34,15 @@ yarn install
 
 ### Interactive Mode
 
-Run the CLI and follow the prompts:
+Run with npx and follow the prompts:
 
 ```bash
-yarn dev
+npx claude-code-to-adium
 ```
 
 This will guide you through:
 
-1. **Choose a Claude project** - From `/Users/orta/.claude/projects`
+1. **Choose a Claude project** - From `~/.claude/projects`
 2. **Select a conversation** - Shows first user message as the name
 3. **Pick an Adium theme** - From installed Adium message styles
 
@@ -42,41 +51,40 @@ This will guide you through:
 Use the command provided by interactive mode for automation:
 
 ```bash
-yarn dev "project-name" "conversation-id" "theme-name"
+npx claude-code-to-adium "project-name" "conversation-id" "theme-name"
 ```
 
 Example:
 
 ```bash
-yarn dev "-Users-orta-dev-app" "ae00148f-c551-400d-bb7e-aac953f62fc8" "Renkoo"
+npx claude-code-to-adium "-Users-orta-dev-app" "ae00148f-c551-400d-bb7e-aac953f62fc8" "Renkoo"
 ```
 
 ## Available Themes
 
 The CLI automatically detects installed Adium themes from:
 
-```
-/Applications/Adium.app/Contents/Resources/Message Styles
-```
+- **System themes**: `/Applications/Adium.app/Contents/Resources/Message Styles/`
+- **User themes**: `~/Library/Application Support/Adium 2.0/Message Styles/`
 
 Common themes include:
 
-- **Renkoo** - Clean, bubble-style messages
+- **Renkoo** - Clean, bubble-style messages (most tested theme)
+- **Modern Bubbling** - Custom theme with glass effects and multiple color variants
 - **Gone Dark** - Dark theme with multiple variants
 - **Mockie** - Minimalist design
 - **Smooth Operator** - Modern, sleek appearance
 
 ## Output
 
-Generated HTML files include:
+Generates complete self-contained folders with:
 
-- Full conversation history with proper sender attribution
-- Timestamps for each message
-- Theme-specific CSS styling
-- Proper message bubble formatting
-- Header information (when available in theme)
+- **conversation.html** - Full conversation with proper styling
+- **CSS files** - Theme styles (main.css and variants)
+- **Images** - All theme images and Claude Code logo
+- **Portable** - No dependencies on Adium installation for viewing
 
-Files are saved as `conversation-[timestamp].html` in the current directory.
+Output folders are named using chat title + project name (e.g., `my-chat-title-project-name/`).
 
 ## Technical Details
 
@@ -110,9 +118,11 @@ yarn start      # Same as yarn dev
 
 ## Requirements
 
-- Node.js 16+
-- Adium installed (for theme access)
-- Claude Code conversations in the default location
+- **Node.js 16+** - For running the CLI
+- **Adium installed** - Required for accessing message themes and styles
+- **Claude Code conversations** - Must be in the default `~/.claude/projects` location
+
+**Note**: Adium installation is necessary even if you don't use it for messaging, as the tool reads theme files from the Adium application bundle and user library.
 
 ## Contributing
 

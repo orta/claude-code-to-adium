@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 
 import * as fs from "fs";
 import * as path from "path";
@@ -33,6 +33,10 @@ interface AdiumTheme {
 const CLAUDE_PROJECTS_PATH = "/Users/orta/.claude/projects";
 const ADIUM_THEMES_PATH =
   "/Applications/Adium.app/Contents/Resources/Message Styles";
+const USER_ADIUM_THEMES_PATH = path.join(
+  os.homedir(),
+  "Library/Application Support/Adium 2.0/Message Styles"
+);
 
 function copyDirectory(source: string, target: string) {
   if (!fs.existsSync(target)) {
@@ -84,13 +88,13 @@ async function interactiveMode() {
       message: "Choose a Claude project:",
       choices: projects.map((p: any) => ({
         name: p.displayName,
-        value: p.path,
+        value: p,
       })),
     },
   ]);
 
   // Step 2: Choose conversation
-  const conversations = getConversationsForProject(selectedProject);
+  const conversations = getConversationsForProject(selectedProject.path);
   const { selectedConversation } = await inquirer.prompt([
     {
       type: "list",
@@ -112,7 +116,7 @@ async function interactiveMode() {
   ]);
 
   // Generate command for future use
-  const projectName = path.basename(selectedProject);
+  const projectName = selectedProject.originalName;
   const conversationName = path.basename(selectedConversation, ".jsonl");
   console.log(
     `\nFor future use, run: claude-to-adium "${projectName}" "${conversationName}" "${selectedTheme}"\n`
@@ -128,6 +132,7 @@ function getAvailableProjects() {
     .filter((dirent: any) => dirent.isDirectory())
     .map((dirent: any) => ({
       displayName: dirent.name.replace(/^-/, "").replace(/-/g, "/"),
+      originalName: dirent.name,
       path: path.join(CLAUDE_PROJECTS_PATH, dirent.name),
     }));
 
@@ -163,23 +168,66 @@ function getConversationsForProject(projectPath: string) {
 }
 
 function getAvailableThemes() {
-  return fs
-    .readdirSync(ADIUM_THEMES_PATH, { withFileTypes: true })
-    .filter(
-      (dirent: any) =>
-        dirent.isDirectory() && dirent.name.endsWith(".AdiumMessageStyle")
-    )
-    .map((dirent: any) => ({
-      name: dirent.name.replace(".AdiumMessageStyle", ""),
-      path: path.join(ADIUM_THEMES_PATH, dirent.name),
-    }));
+  const themes: Array<{ name: string; path: string }> = [];
+  
+  // Check system themes
+  try {
+    const systemThemes = fs
+      .readdirSync(ADIUM_THEMES_PATH, { withFileTypes: true })
+      .filter(
+        (dirent: any) =>
+          dirent.isDirectory() && dirent.name.endsWith(".AdiumMessageStyle")
+      )
+      .map((dirent: any) => ({
+        name: dirent.name.replace(".AdiumMessageStyle", ""),
+        path: path.join(ADIUM_THEMES_PATH, dirent.name),
+      }));
+    themes.push(...systemThemes);
+  } catch {
+    // System themes not found
+  }
+  
+  // Check user themes
+  try {
+    if (fs.existsSync(USER_ADIUM_THEMES_PATH)) {
+      const userThemes = fs
+        .readdirSync(USER_ADIUM_THEMES_PATH, { withFileTypes: true })
+        .filter(
+          (dirent: any) =>
+            dirent.isDirectory() && dirent.name.endsWith(".AdiumMessageStyle")
+        )
+        .map((dirent: any) => ({
+          name: dirent.name.replace(".AdiumMessageStyle", ""),
+          path: path.join(USER_ADIUM_THEMES_PATH, dirent.name),
+        }));
+      themes.push(...userThemes);
+    }
+  } catch {
+    // User themes not found
+  }
+  
+  if (themes.length === 0) {
+    console.error("Could not find any Adium themes. Is Adium installed?");
+    process.exit(1);
+  }
+  
+  // Remove duplicates (prefer user themes over system themes)
+  const uniqueThemes = themes.reduce((acc, theme) => {
+    if (!acc.find(t => t.name === theme.name)) {
+      acc.push(theme);
+    }
+    return acc;
+  }, [] as Array<{ name: string; path: string }>);
+  
+  return uniqueThemes;
 }
 
 function loadAdiumTheme(themeName: string): AdiumTheme {
-  const themePath = path.join(
-    ADIUM_THEMES_PATH,
-    `${themeName}.AdiumMessageStyle`
-  );
+  // Try to find theme in user directory first, then system directory
+  let themePath = path.join(USER_ADIUM_THEMES_PATH, `${themeName}.AdiumMessageStyle`);
+  if (!fs.existsSync(themePath)) {
+    themePath = path.join(ADIUM_THEMES_PATH, `${themeName}.AdiumMessageStyle`);
+  }
   const resourcesPath = path.join(themePath, "Contents", "Resources");
 
   // Load templates
@@ -416,7 +464,7 @@ function renderMessage(
         breaks: true, // Convert line breaks to <br>
         gfm: true, // GitHub flavored markdown
       });
-      messageContent = marked(messageContent);
+      messageContent = marked.parse(messageContent) as string;
       // Remove wrapping <p> tags for single paragraphs
       messageContent = messageContent.replace(/^<p>|<\/p>$/g, "");
     } catch (error) {
