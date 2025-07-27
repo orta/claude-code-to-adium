@@ -3,6 +3,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { exec } from "child_process";
 import inquirer from "inquirer";
 import { marked } from "marked";
 
@@ -60,7 +61,24 @@ function copyDirectory(source: string, target: string) {
 async function main() {
   const args = process.argv.slice(2);
 
-  if (args.length === 3) {
+  // Check for --all flag
+  if (args.includes("--all")) {
+    const allIndex = args.indexOf("--all");
+    args.splice(allIndex, 1); // Remove --all from args
+
+    if (args.length === 2) {
+      // --all mode: process all conversations in a project
+      const [projectName, themeName] = args;
+      await processAllConversations(projectName, themeName);
+    } else if (args.length === 0) {
+      // Interactive mode with --all flag
+      await interactiveModeAll();
+    } else {
+      console.error("Usage with --all: claude-to-adium --all");
+      console.error('Or: claude-to-adium "project-name" "theme-name" --all');
+      process.exit(1);
+    }
+  } else if (args.length === 3) {
     // Non-interactive mode with provided arguments
     const [projectName, conversationFile, themeName] = args;
     const projectPath = path.join(CLAUDE_PROJECTS_PATH, projectName);
@@ -68,7 +86,14 @@ async function main() {
       projectPath,
       conversationFile + ".jsonl"
     );
-    await generateHTML(projectName, conversationPath, themeName);
+    const isDevMode = process.argv0.includes("node");
+    await generateHTML(
+      projectName,
+      conversationPath,
+      themeName,
+      undefined,
+      isDevMode
+    );
   } else {
     // Interactive mode
     await interactiveMode();
@@ -78,15 +103,15 @@ async function main() {
 async function interactiveMode() {
   // Read version from package.json
   let version = "unknown";
-  
+
   // Try multiple locations for package.json
   const possiblePaths = [
-    path.resolve(__dirname, "package.json"),           // Same dir as compiled code
-    path.resolve(__dirname, "..", "package.json"),    // Parent dir (dev)
-    path.resolve(process.cwd(), "package.json"),      // Current working dir
-    path.resolve(__dirname, "..", "..", "package.json") // npm package root
+    path.resolve(__dirname, "package.json"), // Same dir as compiled code
+    path.resolve(__dirname, "..", "package.json"), // Parent dir (dev)
+    path.resolve(process.cwd(), "package.json"), // Current working dir
+    path.resolve(__dirname, "..", "..", "package.json"), // npm package root
   ];
-  
+
   for (const packagePath of possiblePaths) {
     try {
       const packageContent = fs.readFileSync(packagePath, "utf8");
@@ -99,7 +124,7 @@ async function interactiveMode() {
       // Continue to next path
     }
   }
-  
+
   console.log(`Claude Code to Adium HTML Converter v${version}`);
   console.log("=".repeat(40 + version.length) + "\n");
 
@@ -110,21 +135,36 @@ async function interactiveMode() {
       type: "list",
       name: "selectedProject",
       message: "Choose a Claude project:",
-      choices: projects.map((p: any) => ({
-        name: p.displayName,
-        value: p,
-      })),
+      choices: projects.map((p: any) => {
+        const timeAgo = formatTimeAgo(p.lastTouched);
+        const displayName = timeAgo
+          ? `${p.displayName} (${timeAgo})`
+          : p.displayName;
+        return {
+          name: displayName,
+          value: p,
+        };
+      }),
     },
   ]);
 
   // Step 2: Choose conversation
   const conversations = getConversationsForProject(selectedProject.path);
+  const conversationChoices = [
+    { name: "🔄 All conversations", value: "ALL" },
+    ...conversations.map((c: any) => {
+      const timeAgo = formatTimeAgo(c.lastTouched);
+      const displayName = timeAgo ? `${c.name} (${timeAgo})` : c.name;
+      return { name: displayName, value: c.file };
+    }),
+  ];
+
   const { selectedConversation } = await inquirer.prompt([
     {
       type: "list",
       name: "selectedConversation",
       message: "Choose a conversation:",
-      choices: conversations.map((c: any) => ({ name: c.name, value: c.file })),
+      choices: conversationChoices,
     },
   ]);
 
@@ -139,26 +179,163 @@ async function interactiveMode() {
     },
   ]);
 
+  // Handle "All conversations" selection
+  if (selectedConversation === "ALL") {
+    // Generate command for future use
+    const projectName = selectedProject.originalName;
+    console.log(
+      `\nFor future use, run: claude-to-adium "${projectName}" "${selectedTheme}" --all\n`
+    );
+
+    // Process all conversations
+    await processAllConversations(projectName, selectedTheme);
+  } else {
+    // Generate command for future use
+    const projectName = selectedProject.originalName;
+    const conversationName = path.basename(selectedConversation, ".jsonl");
+    console.log(
+      `\nFor future use, run: claude-to-adium "${projectName}" "${conversationName}" "${selectedTheme}"\n`
+    );
+
+    // Generate HTML for single conversation
+    const isDevMode = process.argv0.includes("node");
+    await generateHTML(
+      projectName,
+      selectedConversation,
+      selectedTheme,
+      undefined,
+      isDevMode
+    );
+  }
+}
+
+async function interactiveModeAll() {
+  // Read version from package.json
+  let version = "unknown";
+
+  // Try multiple locations for package.json
+  const possiblePaths = [
+    path.resolve(__dirname, "package.json"), // Same dir as compiled code
+    path.resolve(__dirname, "..", "package.json"), // Parent dir (dev)
+    path.resolve(process.cwd(), "package.json"), // Current working dir
+    path.resolve(__dirname, "..", "..", "package.json"), // npm package root
+  ];
+
+  for (const packagePath of possiblePaths) {
+    try {
+      const packageContent = fs.readFileSync(packagePath, "utf8");
+      const packageData = JSON.parse(packageContent);
+      if (packageData.name === "claude-code-to-adium") {
+        version = packageData.version;
+        break;
+      }
+    } catch {
+      // Continue to next path
+    }
+  }
+
+  console.log(
+    `Claude Code to Adium HTML Converter v${version} - ALL CONVERSATIONS MODE`
+  );
+  console.log("=".repeat(60 + version.length) + "\n");
+
+  // Step 1: Choose project
+  const projects = getAvailableProjects();
+  const { selectedProject } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "selectedProject",
+      message: "Choose a Claude project (ALL conversations will be processed):",
+      choices: projects.map((p: any) => {
+        const timeAgo = formatTimeAgo(p.lastTouched);
+        const displayName = timeAgo
+          ? `${p.displayName} (${timeAgo})`
+          : p.displayName;
+        return {
+          name: displayName,
+          value: p,
+        };
+      }),
+    },
+  ]);
+
+  // Step 2: Choose theme
+  const themes = getAvailableThemes();
+  const { selectedTheme } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "selectedTheme",
+      message: "Choose an Adium theme:",
+      choices: themes.map((t: any) => ({ name: t.name, value: t.name })),
+    },
+  ]);
+
   // Generate command for future use
   const projectName = selectedProject.originalName;
-  const conversationName = path.basename(selectedConversation, ".jsonl");
   console.log(
-    `\nFor future use, run: claude-to-adium "${projectName}" "${conversationName}" "${selectedTheme}"\n`
+    `\nFor future use, run: claude-to-adium "${projectName}" "${selectedTheme}" --all\n`
   );
 
-  // Generate HTML
-  await generateHTML(projectName, selectedConversation, selectedTheme);
+  // Process all conversations
+  await processAllConversations(projectName, selectedTheme);
+}
+
+function formatTimeAgo(timestamp: number): string {
+  if (timestamp === 0) return "";
+
+  const now = Date.now();
+  const diff = now - timestamp;
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const weeks = Math.floor(days / 7);
+  const months = Math.floor(days / 30);
+
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  if (weeks < 4) return `${weeks}w ago`;
+  if (months < 12) return `${months}mo ago`;
+
+  const years = Math.floor(days / 365);
+  return `${years}y ago`;
 }
 
 function getAvailableProjects() {
   const projects = fs
     .readdirSync(CLAUDE_PROJECTS_PATH, { withFileTypes: true })
     .filter((dirent: any) => dirent.isDirectory())
-    .map((dirent: any) => ({
-      displayName: dirent.name.replace(/^-/, "").replace(/-/g, "/"),
-      originalName: dirent.name,
-      path: path.join(CLAUDE_PROJECTS_PATH, dirent.name),
-    }));
+    .map((dirent: any) => {
+      const projectPath = path.join(CLAUDE_PROJECTS_PATH, dirent.name);
+
+      // Find the most recently modified conversation file in this project
+      let lastTouched = 0;
+      try {
+        const files = fs
+          .readdirSync(projectPath)
+          .filter((file: string) => file.endsWith(".jsonl"));
+
+        for (const file of files) {
+          const filePath = path.join(projectPath, file);
+          const stats = fs.statSync(filePath);
+          if (stats.mtime.getTime() > lastTouched) {
+            lastTouched = stats.mtime.getTime();
+          }
+        }
+      } catch (error) {
+        // If we can't read the directory, use 0 as fallback
+        lastTouched = 0;
+      }
+
+      return {
+        displayName: dirent.name.replace(/^-/, "").replace(/-/g, "/"),
+        originalName: dirent.name,
+        path: projectPath,
+        lastTouched,
+      };
+    })
+    .sort((a, b) => b.lastTouched - a.lastTouched); // Sort by most recently touched first
 
   return projects;
 }
@@ -172,6 +349,16 @@ function getConversationsForProject(projectPath: string) {
       const firstLine = fs.readFileSync(filePath, "utf8").split("\n")[0];
 
       let name = file;
+      let lastTouched = 0;
+
+      // Get file modification time
+      try {
+        const stats = fs.statSync(filePath);
+        lastTouched = stats.mtime.getTime();
+      } catch (_e) {
+        // Use 0 as fallback
+      }
+
       try {
         const firstMessage: ClaudeMessage = JSON.parse(firstLine);
         if (firstMessage.type === "user" && firstMessage.message.content) {
@@ -185,15 +372,74 @@ function getConversationsForProject(projectPath: string) {
         // Use filename if parsing fails
       }
 
-      return { name, file: filePath };
-    });
+      return { name, file: filePath, lastTouched };
+    })
+    .sort((a, b) => b.lastTouched - a.lastTouched); // Sort by most recently touched first
 
   return files;
 }
 
+async function processAllConversations(projectName: string, themeName: string) {
+  console.log(
+    `Processing all conversations in project "${projectName}" with theme "${themeName}"...`
+  );
+
+  const projectPath = path.join(CLAUDE_PROJECTS_PATH, projectName);
+
+  // Check if project exists
+  if (!fs.existsSync(projectPath)) {
+    console.error(
+      `Project "${projectName}" not found in ${CLAUDE_PROJECTS_PATH}`
+    );
+    process.exit(1);
+  }
+
+  // Get all conversations
+  const conversations = getConversationsForProject(projectPath);
+
+  if (conversations.length === 0) {
+    console.error(`No conversations found in project "${projectName}"`);
+    process.exit(1);
+  }
+
+  // Create main output directory
+  const mainOutputDir = "claude-conversations";
+  if (!fs.existsSync(mainOutputDir)) {
+    fs.mkdirSync(mainOutputDir, { recursive: true });
+  }
+
+  console.log(`Found ${conversations.length} conversations to process...`);
+
+  // Process each conversation
+  for (let i = 0; i < conversations.length; i++) {
+    const conversation = conversations[i];
+    console.log(
+      `\n[${i + 1}/${conversations.length}] Processing: ${conversation.name}`
+    );
+
+    try {
+      const isDevMode = process.argv0.includes("node");
+      await generateHTML(
+        projectName,
+        conversation.file,
+        themeName,
+        mainOutputDir,
+        isDevMode
+      );
+    } catch (error) {
+      console.error(`Error processing conversation: ${error}`);
+      // Continue with next conversation
+    }
+  }
+
+  console.log(
+    `\nAll conversations processed! Output saved in: ${mainOutputDir}/`
+  );
+}
+
 function getAvailableThemes() {
   const themes: Array<{ name: string; path: string }> = [];
-  
+
   // Check system themes
   try {
     const systemThemes = fs
@@ -210,7 +456,7 @@ function getAvailableThemes() {
   } catch {
     // System themes not found
   }
-  
+
   // Check user themes
   try {
     if (fs.existsSync(USER_ADIUM_THEMES_PATH)) {
@@ -229,26 +475,29 @@ function getAvailableThemes() {
   } catch {
     // User themes not found
   }
-  
+
   if (themes.length === 0) {
     console.error("Could not find any Adium themes. Is Adium installed?");
     process.exit(1);
   }
-  
+
   // Remove duplicates (prefer user themes over system themes)
   const uniqueThemes = themes.reduce((acc, theme) => {
-    if (!acc.find(t => t.name === theme.name)) {
+    if (!acc.find((t) => t.name === theme.name)) {
       acc.push(theme);
     }
     return acc;
   }, [] as Array<{ name: string; path: string }>);
-  
+
   return uniqueThemes;
 }
 
 function loadAdiumTheme(themeName: string): AdiumTheme {
   // Try to find theme in user directory first, then system directory
-  let themePath = path.join(USER_ADIUM_THEMES_PATH, `${themeName}.AdiumMessageStyle`);
+  let themePath = path.join(
+    USER_ADIUM_THEMES_PATH,
+    `${themeName}.AdiumMessageStyle`
+  );
   if (!fs.existsSync(themePath)) {
     themePath = path.join(ADIUM_THEMES_PATH, `${themeName}.AdiumMessageStyle`);
   }
@@ -402,12 +651,12 @@ function isCancellationMessage(message: ClaudeMessage): boolean {
 
 function isSystemMessage(message: ClaudeMessage): string | null {
   if (!message.message.content) return null;
-  
+
   // Check if userType indicates a system message
   if (message.userType && message.userType !== "external") {
     return `System message (${message.userType})`;
   }
-  
+
   let content = "";
   if (typeof message.message.content === "string") {
     content = message.message.content;
@@ -417,22 +666,29 @@ function isSystemMessage(message: ClaudeMessage): string | null {
       .map((item: any) => item.text)
       .join("");
   }
-  
+
   // Check for system continuation messages
-  if (content.includes("This session is being continued from a previous conversation")) {
+  if (
+    content.includes(
+      "This session is being continued from a previous conversation"
+    )
+  ) {
     return "Session continued from previous conversation";
   }
-  
+
   // Check for context limit messages
-  if (content.includes("ran out of context") || content.includes("context limit")) {
+  if (
+    content.includes("ran out of context") ||
+    content.includes("context limit")
+  ) {
     return "Context limit reached";
   }
-  
+
   // Check for system reminders
   if (content.includes("<system-reminder>")) {
     return "System reminder";
   }
-  
+
   return null;
 }
 
@@ -498,6 +754,7 @@ function renderMessage(
   } else if (message.message.role === "user") {
     // For user messages only, handle escaped backslash-n from JSON (\\n) and actual newlines
     messageContent = messageContent
+      .replace(/\/$/gm, "<br>") // Replace "/" at end of lines with newlines
       .replace(/\\\\n/g, "<br>") // Handle \\n from JSON
       .replace(/\n/g, "<br>"); // Handle actual newlines
   }
@@ -537,7 +794,9 @@ function renderMessage(
 async function generateHTML(
   projectName: string,
   conversationFile: string,
-  themeName: string
+  themeName: string,
+  customOutputDir?: string,
+  isDevMode: boolean = false
 ) {
   try {
     console.log(`Generating HTML for conversation using ${themeName} theme...`);
@@ -551,7 +810,9 @@ async function generateHTML(
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
 
-    const outputDir = `${kebabChatName}-${projectName}`;
+    const outputDir = customOutputDir
+      ? path.join(customOutputDir, `${kebabChatName}-${projectName}`)
+      : `${kebabChatName}-${projectName}`;
 
     // Create output directory structure
     if (!fs.existsSync(outputDir)) {
@@ -559,12 +820,7 @@ async function generateHTML(
     }
 
     // Copy theme CSS files to output directory
-    const themePath = path.join(
-      ADIUM_THEMES_PATH,
-      `${themeName}.AdiumMessageStyle`,
-      "Contents",
-      "Resources"
-    );
+    const themePath = path.join(theme.path, "Contents", "Resources");
 
     // Copy main CSS
     const mainCSSPath = path.join(themePath, "Styles", "main.css");
@@ -613,8 +869,18 @@ async function generateHTML(
       fs.copyFileSync(claudeIconSource, claudeIconTarget);
     }
 
+    // Generate command that created this HTML
+    const commandArgs = process.argv.slice(2);
+    const isYarnDev = process.argv0.includes("yarn");
+    const commandPrefix = isYarnDev ? "yarn dev" : "claude-to-adium";
+    const commandUsed =
+      commandArgs.length > 0
+        ? `${commandPrefix} ${commandArgs.join(" ")}`
+        : commandPrefix;
+
     // Generate HTML without base href, using local references
-    let htmlContent = `<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+    let htmlContent = `<!-- Generated by: ${commandUsed} -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html><head>
 	<meta http-equiv="content-type" content="text/html; charset=utf-8">
 	
@@ -802,6 +1068,26 @@ async function generateHTML(
     fs.writeFileSync(htmlFile, htmlContent);
 
     console.log(`HTML conversation generated in directory: ${outputDir}/`);
+
+    // Open in browser if running via yarn dev
+    if (isDevMode) {
+      const absoluteHtmlPath = path.resolve(htmlFile);
+      console.log(`Opening conversation.html in default browser...`);
+
+      // Use platform-appropriate command to open the file
+      const openCommand =
+        process.platform === "darwin"
+          ? "open"
+          : process.platform === "win32"
+          ? "start"
+          : "xdg-open";
+
+      exec(`${openCommand} "${absoluteHtmlPath}"`, (error) => {
+        if (error) {
+          console.error(`Failed to open browser: ${error.message}`);
+        }
+      });
+    }
   } catch (error) {
     console.error("Error generating HTML:", error);
     process.exit(1);
