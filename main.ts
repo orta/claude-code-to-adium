@@ -910,12 +910,15 @@ function renderMessage(
         .replace(/%messageClasses%/g, messageClasses)
         .replace(/%senderColor%/g, isIncoming ? "#0000FF" : "#FF0000")
         .replace(/<span id="insert"><\/span>/g, "");
-      
+
       // Clean up sender @ when there's no timestamp for consecutive messages
       if (!nextTimeString) {
-        nextResult = nextResult.replace(new RegExp(`${senderName}\\s*@\\s*`, 'g'), senderName);
+        nextResult = nextResult.replace(
+          new RegExp(`${senderName}\\s*@\\s*`, "g"),
+          senderName
+        );
       }
-      
+
       consecutiveContent += nextResult;
     }
   }
@@ -931,12 +934,15 @@ function renderMessage(
     .replace(/%messageClasses%/g, messageClasses)
     .replace(/%senderColor%/g, isIncoming ? "#0000FF" : "#FF0000")
     .replace(/<span id="insert"><\/span>/g, consecutiveContent);
-  
+
   // Clean up sender @ when there's no timestamp
   if (!timeString) {
-    result = result.replace(new RegExp(`${senderName}\\s*@\\s*`, 'g'), senderName);
+    result = result.replace(
+      new RegExp(`${senderName}\\s*@\\s*`, "g"),
+      senderName
+    );
   }
-  
+
   return result;
 }
 
@@ -1084,6 +1090,8 @@ async function generateHTML(
 			right: auto !important;
 			z-index: auto !important;
       margin-bottom: 0.5em;
+      width: calc(100% - 2px) !important;
+      overflow-x: hidden !important;
 		}
 		h1 { font-size: 1.2em; font-weight: 600; margin: 0.5em 0; }
 		h2 { font-size: 1.15em; font-weight: 600; margin: 0.4em 0; }
