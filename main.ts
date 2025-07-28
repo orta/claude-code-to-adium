@@ -965,8 +965,12 @@ async function generateHTML(
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
 
+    // When processing all conversations, add conversation ID to ensure uniqueness
+    const conversationId = path.basename(conversationFile, ".jsonl");
+    const directorySuffix = customOutputDir ? `-${conversationId.substring(0, 8)}` : "";
+    
     const outputDir = customOutputDir
-      ? path.join(customOutputDir, `${kebabChatName}-${projectName}`)
+      ? path.join(customOutputDir, `${kebabChatName}-${projectName}${directorySuffix}`)
       : `${kebabChatName}-${projectName}`;
 
     // Create output directory structure
@@ -1052,7 +1056,6 @@ async function generateHTML(
     }
 
     // Generate command that created this HTML
-    const conversationId = path.basename(conversationFile, ".jsonl");
     const commandArgs = process.argv.slice(2);
     const isYarnDev = process.argv0.includes("yarn");
     const commandPrefix = isYarnDev ? "yarn dev" : "claude-to-adium";
