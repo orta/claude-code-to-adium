@@ -55,6 +55,10 @@ Example:
 npx claude-code-to-adium "-Users-orta-dev-app" "ae00148f-c551-400d-bb7e-aac953f62fc8" "Renkoo"
 ```
 
+## Find mode
+
+Use `npx claude-code-to-adium --find` to plain-text search through conversation logs which would provide an example like the above command to then print
+
 ## Available Themes
 
 The CLI automatically detects installed Adium themes from:

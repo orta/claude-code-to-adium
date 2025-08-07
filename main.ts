@@ -6,6 +6,7 @@ import * as os from "os";
 import { exec } from "child_process";
 import inquirer from "inquirer";
 import { marked } from "marked";
+import { findConversations } from "./search";
 
 interface ClaudeMessage {
   message: {
@@ -62,6 +63,12 @@ function copyDirectory(source: string, target: string) {
 
 async function main() {
   const args = process.argv.slice(2);
+
+  // Check for --find flag
+  if (args.includes("--find")) {
+    await findConversations();
+    return;
+  }
 
   // Check for --all flag
   if (args.includes("--all")) {
@@ -967,10 +974,15 @@ async function generateHTML(
 
     // When processing all conversations, add conversation ID to ensure uniqueness
     const conversationId = path.basename(conversationFile, ".jsonl");
-    const directorySuffix = customOutputDir ? `-${conversationId.substring(0, 8)}` : "";
-    
+    const directorySuffix = customOutputDir
+      ? `-${conversationId.substring(0, 8)}`
+      : "";
+
     const outputDir = customOutputDir
-      ? path.join(customOutputDir, `${kebabChatName}-${projectName}${directorySuffix}`)
+      ? path.join(
+          customOutputDir,
+          `${kebabChatName}-${projectName}${directorySuffix}`
+        )
       : `${kebabChatName}-${projectName}`;
 
     // Create output directory structure
