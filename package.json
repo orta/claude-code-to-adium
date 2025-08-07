@@ -1,6 +1,6 @@
 {
   "name": "claude-code-to-adium",
-  "version": "1.1.3",
+  "version": "1.2.0",
   "description": "Convert Claude Code conversations to HTML using Adium message themes",
   "license": "BSD-3-Clause",
   "repository": {
